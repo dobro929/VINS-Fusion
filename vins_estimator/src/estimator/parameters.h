@@ -64,6 +64,11 @@ extern double F_THRESHOLD;
 extern int SHOW_TRACK;
 extern int FLOW_BACK;
 
+extern int IMAGE_PADDING_TOP;
+extern int IMAGE_PADDING_BOTTOM;
+extern int IMAGE_PADDING_LEFT;
+extern int IMAGE_PADDING_RIGHT;
+
 void readParameters(std::string config_file);
 
 enum SIZE_PARAMETERIZATION

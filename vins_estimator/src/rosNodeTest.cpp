@@ -98,8 +98,10 @@ void sync_process()
                     time = img0_buf.front()->header.stamp.toSec();
                     header = img0_buf.front()->header;
                     image0 = getImageFromMsg(img0_buf.front());
+                    image0 = image0(cv::Range(IMAGE_PADDING_TOP, image0.size().height - IMAGE_PADDING_BOTTOM), cv::Range(IMAGE_PADDING_LEFT, image0.size().width - IMAGE_PADDING_RIGHT));
                     img0_buf.pop();
                     image1 = getImageFromMsg(img1_buf.front());
+                    image1 = image1(cv::Range(IMAGE_PADDING_TOP, image1.size().height - IMAGE_PADDING_BOTTOM), cv::Range(IMAGE_PADDING_LEFT, image1.size().width - IMAGE_PADDING_RIGHT));
                     img1_buf.pop();
                     //printf("find img0 and img1\n");
                 }

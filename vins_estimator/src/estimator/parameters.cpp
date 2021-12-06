@@ -46,6 +46,11 @@ double F_THRESHOLD;
 int SHOW_TRACK;
 int FLOW_BACK;
 
+int IMAGE_PADDING_TOP;
+int IMAGE_PADDING_BOTTOM;
+int IMAGE_PADDING_LEFT;
+int IMAGE_PADDING_RIGHT;
+
 
 template <typename T>
 T readParam(ros::NodeHandle &n, std::string name)
@@ -185,8 +190,15 @@ void readParameters(std::string config_file)
     else
         ROS_INFO_STREAM("Synchronized sensors, fix time offset: " << TD);
 
+    IMAGE_PADDING_TOP = fsSettings["image_padding_top"];
+    IMAGE_PADDING_BOTTOM = fsSettings["image_padding_bottom"];
+    IMAGE_PADDING_LEFT = fsSettings["image_padding_left"];
+    IMAGE_PADDING_RIGHT = fsSettings["image_padding_right"];
+
     ROW = fsSettings["image_height"];
     COL = fsSettings["image_width"];
+    ROW = ROW - IMAGE_PADDING_TOP - IMAGE_PADDING_BOTTOM;
+    COL = COL - IMAGE_PADDING_LEFT - IMAGE_PADDING_RIGHT;
     ROS_INFO("ROW: %d COL: %d ", ROW, COL);
 
     if(!USE_IMU)
