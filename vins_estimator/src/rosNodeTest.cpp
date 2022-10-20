@@ -15,8 +15,12 @@
 #include <thread>
 #include <mutex>
 #include <ros/ros.h>
+#include <tf2_ros/transform_listener.h>
+#include <geometry_msgs/TransformStamped.h>
+#include <geometry_msgs/Twist.h>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
+#include <eigen3/Eigen/Dense>
 #include "estimator/estimator.h"
 #include "estimator/parameters.h"
 #include "utility/visualization.h"
@@ -29,10 +33,68 @@ queue<sensor_msgs::ImageConstPtr> img0_buf;
 queue<sensor_msgs::ImageConstPtr> img1_buf;
 std::mutex m_buf;
 
+tf2_ros::Buffer tfBuffer;
+
+bool img0_tf_initialized = false;
+bool img1_tf_initialized = false;
+
+bool img0_frame_set = false;
+bool img1_frame_set = false;
+bool imu_frame_set = false;
 
 void img0_callback(const sensor_msgs::ImageConstPtr &img_msg)
 {
     m_buf.lock();
+
+    if (!img0_frame_set)
+    {
+        if (IMAGE0_FRAME.size() == 0)
+        {
+            IMAGE0_FRAME = img_msg->header.frame_id;
+        }
+
+        ROS_INFO_STREAM("img0 frame set to " << IMAGE0_FRAME);
+        img0_frame_set = true;
+    }
+
+    if (USE_TF && !img0_tf_initialized)
+    {
+        std::string base_frame = IMAGE0_FRAME;
+        if (USE_IMU)
+        {
+            if (!imu_frame_set)
+            {
+                m_buf.unlock();
+                return;
+            }
+
+            base_frame = IMU_FRAME;
+        }
+
+        geometry_msgs::TransformStamped transform;
+        try{
+            transform = tfBuffer.lookupTransform(base_frame, IMAGE0_FRAME, ros::Time(0));
+            TIC[0] = Eigen::Vector3d(transform.transform.translation.x,
+                                    transform.transform.translation.y,
+                                    transform.transform.translation.z);
+            RIC[0] = Eigen::Quaterniond(transform.transform.rotation.w,
+                                        transform.transform.rotation.x,
+                                        transform.transform.rotation.y,
+                                        transform.transform.rotation.z).toRotationMatrix();
+
+            ROS_INFO_STREAM("initialized img0 extrinsics based on tf");
+
+            estimator.setParameter();
+
+            img0_tf_initialized = true;
+        }
+        catch (tf2::TransformException &ex) {
+            ROS_WARN("%s",ex.what());
+            m_buf.unlock();
+            return;
+        }
+    }
+
     img0_buf.push(img_msg);
     m_buf.unlock();
 }
@@ -40,6 +102,66 @@ void img0_callback(const sensor_msgs::ImageConstPtr &img_msg)
 void img1_callback(const sensor_msgs::ImageConstPtr &img_msg)
 {
     m_buf.lock();
+
+    if (!img1_frame_set)
+    {
+        if (IMAGE1_FRAME.size() == 0)
+        {
+            IMAGE1_FRAME = img_msg->header.frame_id;
+        }
+
+        ROS_INFO_STREAM("img1 frame set to " << IMAGE1_FRAME);
+        img1_frame_set = true;
+    }
+
+    if (USE_TF && !img1_tf_initialized)
+    {
+        std::string base_frame = "";
+        if (USE_IMU)
+        {
+            if (!imu_frame_set)
+            {
+                m_buf.unlock();
+                return;
+            }
+
+            base_frame = IMU_FRAME;
+        }
+        else
+        {
+            if (!img0_frame_set)
+            {
+                m_buf.unlock();
+                return;
+            }
+
+            base_frame = IMAGE0_FRAME;
+        }
+
+        geometry_msgs::TransformStamped transform;
+        try{
+            transform = tfBuffer.lookupTransform(base_frame, IMAGE1_FRAME, ros::Time(0));
+            TIC[1] = Eigen::Vector3d(transform.transform.translation.x,
+                                    transform.transform.translation.y,
+                                    transform.transform.translation.z);
+            RIC[1] = Eigen::Quaterniond(transform.transform.rotation.w,
+                                        transform.transform.rotation.x,
+                                        transform.transform.rotation.y,
+                                        transform.transform.rotation.z).toRotationMatrix();
+
+            ROS_INFO_STREAM("initialized img1 extrinsics based on tf");
+
+            estimator.setParameter();
+
+            img1_tf_initialized = true;
+        }
+        catch (tf2::TransformException &ex) {
+            ROS_WARN("%s",ex.what());
+            m_buf.unlock();
+            return;
+        }
+    }
+
     img1_buf.push(img_msg);
     m_buf.unlock();
 }
@@ -70,7 +192,7 @@ cv::Mat getImageFromMsg(const sensor_msgs::ImageConstPtr &img_msg)
 // extract images with same timestamp from two topics
 void sync_process()
 {
-    while(1)
+    while(ros::ok())
     {
         if(STEREO)
         {
@@ -136,6 +258,18 @@ void sync_process()
 
 void imu_callback(const sensor_msgs::ImuConstPtr &imu_msg)
 {
+    IMU_FRAME = imu_msg->header.frame_id;
+    if (!imu_frame_set)
+    {
+        if (IMU_FRAME.size() == 0)
+        {
+            IMU_FRAME = imu_msg->header.frame_id;
+        }
+
+        ROS_INFO_STREAM("imu frame set to " << IMU_FRAME);
+        imu_frame_set = true;
+    }
+
     double t = imu_msg->header.stamp.toSec();
     double dx = imu_msg->linear_acceleration.x;
     double dy = imu_msg->linear_acceleration.y;
@@ -146,6 +280,7 @@ void imu_callback(const sensor_msgs::ImuConstPtr &imu_msg)
     Vector3d acc(dx, dy, dz);
     Vector3d gyr(rx, ry, rz);
     estimator.inputIMU(t, acc, gyr);
+
     return;
 }
 
@@ -248,6 +383,11 @@ int main(int argc, char **argv)
 #endif
 
     ROS_WARN("waiting for image and imu...");
+
+    tf2_ros::TransformListener tfListener(tfBuffer);
+
+    ROS_INFO_STREAM(IMAGE0_TOPIC);
+    ROS_INFO_STREAM(IMAGE1_TOPIC);
 
     registerPub(n);
 

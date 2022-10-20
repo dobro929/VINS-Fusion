@@ -30,14 +30,18 @@ std::string EX_CALIB_RESULT_PATH;
 std::string VINS_RESULT_PATH;
 std::string OUTPUT_FOLDER;
 std::string IMU_TOPIC;
+std::string IMU_FRAME = "";
 int ROW, COL;
 double TD;
 int NUM_OF_CAM;
 int STEREO;
 int USE_IMU;
+int USE_TF;
 int MULTIPLE_THREAD;
 map<int, Eigen::Vector3d> pts_gt;
 std::string IMAGE0_TOPIC, IMAGE1_TOPIC;
+std::string IMAGE0_FRAME = "";
+std::string IMAGE1_FRAME = "";
 std::string FISHEYE_MASK;
 std::vector<std::string> CAM_NAMES;
 int MAX_CNT;
@@ -86,6 +90,8 @@ void readParameters(std::string config_file)
 
     fsSettings["image0_topic"] >> IMAGE0_TOPIC;
     fsSettings["image1_topic"] >> IMAGE1_TOPIC;
+    fsSettings["image0_frame"] >> IMAGE0_FRAME;
+    fsSettings["image1_frame"] >> IMAGE1_FRAME;
     MAX_CNT = fsSettings["max_cnt"];
     MIN_DIST = fsSettings["min_dist"];
     F_THRESHOLD = fsSettings["F_threshold"];
@@ -96,10 +102,12 @@ void readParameters(std::string config_file)
 
     USE_IMU = fsSettings["imu"];
     printf("USE_IMU: %d\n", USE_IMU);
+    USE_TF = fsSettings["use_tf"];
     if(USE_IMU)
     {
         fsSettings["imu_topic"] >> IMU_TOPIC;
         printf("IMU_TOPIC: %s\n", IMU_TOPIC.c_str());
+        fsSettings["imu_frame"] >> IMU_FRAME;
         ACC_N = fsSettings["acc_n"];
         ACC_W = fsSettings["acc_w"];
         GYR_N = fsSettings["gyr_n"];
